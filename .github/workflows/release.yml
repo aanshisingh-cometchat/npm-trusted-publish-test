@@ -1,0 +1,60 @@
+name: Release to npm
+
+# The publish job of cometchat-uikit-angular's public release workflow, with its build, digest
+# and SBOM steps left out. A v* tag publishes this test package with npm trusted publishing
+# (OIDC, no token) and provenance.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm-production
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Tag must match the version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $VERSION"; exit 1
+          fi
+          if npm view "@aanshi04/trusted-publish-test@$VERSION" version > /dev/null 2>&1; then
+            echo "::error::$VERSION is already on npm; versions are never republished"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "node $(node --version), npm $(npm --version)"
+      - run: npm ci
+      - name: Pack
+        id: pkg
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          npm pack . --pack-destination "$RUNNER_TEMP/release" > /dev/null
+          echo "tarball=$(ls "$RUNNER_TEMP"/release/*.tgz)" >> "$GITHUB_OUTPUT"
+      - name: Publish with provenance
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TARBALL: ${{ steps.pkg.outputs.tarball }}
+        run: |
+          TAG=latest
+          case "$VERSION" in *-*) TAG=next ;; esac
+          npm publish "$TARBALL" --provenance --access public --tag "$TAG"
