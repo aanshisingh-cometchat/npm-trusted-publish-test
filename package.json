@@ -1,9 +1,14 @@
 {
   "name": "@aanshi04/trusted-publish-test",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Test package for npm trusted publishing from GitHub Actions. Not for use.",
   "main": "index.js",
   "license": "MIT",
   "repository": "https://github.com/aanshisingh-cometchat/npm-trusted-publish-test",
-  "files": ["index.js"]
+  "files": [
+    "index.js"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }
